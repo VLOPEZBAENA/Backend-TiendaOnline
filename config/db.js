@@ -1,22 +1,45 @@
 const mongoose = require('mongoose');
 
-const connectDB = async () => {
-  try {
-    if (mongoose.connection.readyState === 1) {
-      return mongoose.connection;
-    }
+mongoose.set('bufferCommands', false);
 
-    if (!process.env.MONGODB_URI) {
-      console.error('❌ MONGODB_URI no está definida en el archivo .env');
-      return;
-    }
+const cache = global.mongooseCache || (global.mongooseCache = {
+  connection: null,
+  promise: null,
+});
 
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`✅ Conectado exitosamente a MongoDB Atlas: ${conn.connection.host}`);
-    return conn;
-  } catch (error) {
-    console.error(`❌ Error al conectar a MongoDB Atlas: ${error.message}`);
+async function connectDB() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    throw new Error('La variable de entorno MONGODB_URI no está definida.');
   }
-};
+
+  if (mongoose.connection.readyState === 1) {
+    cache.connection = mongoose.connection;
+    return cache.connection;
+  }
+
+  if (mongoose.connection.readyState === 0 && cache.connection) {
+    cache.connection = null;
+    cache.promise = null;
+  }
+
+  if (!cache.promise) {
+    cache.promise = mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 5000,
+      bufferCommands: false,
+    })
+      .then((connection) => {
+        cache.connection = connection.connection;
+        return cache.connection;
+      })
+      .catch((error) => {
+        cache.connection = null;
+        cache.promise = null;
+        throw error;
+      });
+  }
+
+  return cache.promise;
+}
 
 module.exports = connectDB;

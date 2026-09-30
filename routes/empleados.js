@@ -1,52 +1,56 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const connectDB = require('../config/db');
 const Empleado = require('../models/Empleado');
 
 const router = express.Router();
 
-// GET ALL
+function respondWithError(res, error) {
+  const isClientError = error instanceof mongoose.Error.ValidationError
+    || error instanceof mongoose.Error.CastError;
+
+  console.error('Error en rutas de empleados:', error.message);
+  return res.status(isClientError ? 400 : 500).json({
+    mensaje: isClientError ? error.message : 'Error interno del servidor.',
+  });
+}
+
 router.get('/', async (req, res) => {
   try {
+    await connectDB();
     const empleados = await Empleado.find();
     res.json(empleados);
   } catch (error) {
-    console.error('❌ Error en GET /:', error);
-    res.status(500).json({ mensaje: error.message });
+    return respondWithError(res, error);
   }
 });
 
-// GET BY ID
 router.get('/:id', async (req, res) => {
   try {
+    await connectDB();
     const empleado = await Empleado.findById(req.params.id);
     if (!empleado) {
       return res.status(404).json({ mensaje: 'Empleado no encontrado.' });
     }
     res.json(empleado);
   } catch (error) {
-    console.error('❌ Error en GET /:id:', error);
-    res.status(500).json({ mensaje: error.message });
+    return respondWithError(res, error);
   }
 });
 
-// POST
 router.post('/', async (req, res) => {
   try {
-    console.log('📥 Body recibido:', req.body);
+    await connectDB();
     const empleado = await Empleado.create(req.body);
     res.status(201).json(empleado);
   } catch (error) {
-    console.error('❌ Error detallado al crear:', error);
-    res.status(400).json({ 
-      mensaje: 'Error al registrar el empleado', 
-      detalle: error.message 
-    });
+    return respondWithError(res, error);
   }
 });
 
-// PUT
 router.put('/:id', async (req, res) => {
   try {
+    await connectDB();
     const empleado = await Empleado.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -57,22 +61,20 @@ router.put('/:id', async (req, res) => {
     }
     res.json(empleado);
   } catch (error) {
-    console.error('❌ Error en PUT /:id:', error);
-    res.status(400).json({ mensaje: error.message });
+    return respondWithError(res, error);
   }
 });
 
-// DELETE
 router.delete('/:id', async (req, res) => {
   try {
+    await connectDB();
     const empleado = await Empleado.findByIdAndDelete(req.params.id);
     if (!empleado) {
       return res.status(404).json({ mensaje: 'Empleado no encontrado.' });
     }
     res.status(204).end();
   } catch (error) {
-    console.error('❌ Error en DELETE /:id:', error);
-    res.status(500).json({ mensaje: error.message });
+    return respondWithError(res, error);
   }
 });
 
